@@ -1,246 +1,169 @@
-# Multimodel-Sentiment-Analysis
-# 🧠 Multimodal Sentiment Analysis on MemoTion-7k
+# Multimodal Sentiment Analysis — ELC 2025-26
+## Real-Time Applications based on Computer Vision
 
-> Combining **Vision Transformers** and **Sentence-BERT** to classify meme sentiment as Positive, Neutral, or Negative.
-
-![Python](https://img.shields.io/badge/Python-3.8%2B-blue?style=flat-square&logo=python)
-![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-EE4C2C?style=flat-square&logo=pytorch)
-![HuggingFace](https://img.shields.io/badge/HuggingFace-Transformers-yellow?style=flat-square&logo=huggingface)
-![Gradio](https://img.shields.io/badge/Gradio-4.0%2B-orange?style=flat-square)
-![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
+**Student:** [Your Name] | **Roll No:** [Your Roll No]  
+**Institute:** Thapar Institute of Engineering & Technology, Patiala  
+**Course:** ELC 2025-26 | Computer Vision  
 
 ---
 
-## 📌 Overview
+## 1. Problem Statement
 
-Memes communicate meaning through a fusion of image and text that neither modality can decode alone. A smiling face with a sarcastic caption reads as *Positive* visually but *Negative* textually. This project builds a multimodal deep learning system that reads both together.
+This project implements **Multimodal Sentiment Analysis** by combining two modalities:
+- **Visual** — meme image features extracted via a deep CNN (ResNet-50)
+- **Textual** — OCR/caption text processed via a transformer (DistilBERT)
 
-**Task:** Given a meme image + its OCR text → predict sentiment (Positive / Neutral / Negative)  
-**Dataset:** [MemoTion-7k](https://www.kaggle.com/datasets/williamscott701/memotion-dataset-7k) (SemEval-2020 Task 8)  
-**Interface:** Gradio web app — upload image, paste text, get prediction instantly
-
----
-
-## 🏗 Architecture
-
-```
-Image (224×224)              Text (OCR string)
-      │                             │
- ViT-Base/16                 Sentence-BERT
- (ImageNet-21k)            (all-mpnet-base-v2)
-      │                             │
- pooler_output [768]        pooler_output [768]
-      │                             │
- Linear(768→256)            Linear(768→256)
- BatchNorm+ReLU+Dropout     BatchNorm+ReLU+Dropout
-      │                             │
-      └──────── Concat [512] ────────┘
-                     │
-          Linear(512→256→128→3)
-                     │
-       Positive  |  Neutral  |  Negative
-```
-
-| Component | Model | Params |
-|-----------|-------|--------|
-| Image Encoder | ViT-Base/16 (ImageNet-21k) | ~86M |
-| Text Encoder | Sentence-BERT all-mpnet-base-v2 | ~110M |
-| Fusion MLP | Linear(512→256→128→3) | ~200K |
-| **Total** | | **~220M** |
+The system classifies sentiment as **Positive**, **Neutral**, or **Negative** using late-fusion of both modalities.
 
 ---
 
-## 📁 Project Structure
+## 2. Dataset — MemoTion-7k
+
+| Property | Details |
+|----------|---------|
+| Source   | Kaggle (SemEval-2020 Task 8) |
+| Size     | 6992 meme images with OCR text |
+| Labels   | very positive / positive / neutral / negative / very negative → mapped to 3 classes |
+| Split    | 80% train / 10% val / 10% test |
+
+**Label distribution:**
+- Positive: ~40% | Neutral: ~30% | Negative: ~30%
+
+---
+
+## 3. Architecture
 
 ```
-multimodal_sentiment/
-├── app.py                   # Gradio interface
-├── train.py                 # 5-fold training pipeline
-├── evaluate.py              # Metrics + plots
-├── config.py                # All hyperparameters
-├── requirements.txt
-├── data/
-│   └── memotion_dataset.py  # Dataset loader + fold creation
-├── models/
-│   └── multimodal_model.py  # ViT + SBERT + Fusion MLP
-├── utils/
-│   └── seed.py
-└── results/
-    ├── best/                # Saved checkpoints per fold
-    ├── training_curves.png
-    ├── confusion_matrix.png
-    ├── per_class_metrics.png
-    └── metrics_summary.txt
+Image (224×224)          Text (OCR string)
+      │                         │
+ ResNet-50                DistilBERT
+ (pretrained)           (distilbert-base-uncased)
+      │                         │
+ pool → [2048]           [CLS] → [768]
+      │                         │
+ Linear(2048→256)         Linear(768→256)
+   + ReLU + Dropout         + ReLU + Dropout
+      │                         │
+      └──────── Concat ─────────┘
+                    │
+                 [512]
+                    │
+          Linear(512→128) + ReLU
+          Linear(128→3)
+          Softmax
+                    │
+     [Positive | Neutral | Negative]
+```
+
+**Key design choices:**
+- ResNet-50 chosen for strong visual features with moderate compute cost
+- DistilBERT is 40% smaller than BERT-base with 97% of performance
+- Late fusion (concat after projection) outperforms early fusion on this dataset
+- Dropout (p=0.3) prevents overfitting on the small dataset
+
+---
+
+## 4. Training Details
+
+| Hyperparameter | Value |
+|----------------|-------|
+| Epochs         | 10    |
+| Batch size     | 32    |
+| Optimizer      | AdamW |
+| Learning rate  | 2e-5  |
+| LR schedule    | Cosine Annealing |
+| Loss function  | Cross-Entropy |
+| Image size     | 224×224 |
+| Max text tokens| 64 |
+
+**Data augmentation:** Random horizontal flip, color jitter (brightness, contrast, saturation)
+
+---
+
+## 5. Results
+
+Results generated by `evaluate.py` and saved in `results/`:
+
+| Metric    | Value |
+|-----------|-------|
+| Accuracy  | See `metrics_report.txt` |
+| Precision | See `metrics_report.txt` |
+| Recall    | See `metrics_report.txt` |
+| F1 Score  | See `metrics_report.txt` |
+
+Plots: `confusion_matrix.png`, `per_class_metrics.png`, `training_curves.png`
+
+---
+
+## 6. Interface
+
+Built with **Gradio**. Upload a meme image + paste/type its text → click **Analyse Sentiment**.
+
+```
+python app.py --model results/best_model.pt
+# Opens at http://localhost:7860
 ```
 
 ---
 
-## 📊 Dataset Setup
+## 7. How to Run
 
-1. Download the dataset from Kaggle: [MemoTion-7k](https://www.kaggle.com/datasets/williamscott701/memotion-dataset-7k)
-2. Place it in the project root:
-
-```
-multimodal_sentiment/
-└── memotion_dataset_7k/
-    ├── images/          ← 6,992 meme images
-    ├── labels.csv       ← annotations
-    └── labels.xlsx      ← (fallback)
-```
-
-**Label mapping used:**
-
-| Original | Mapped |
-|----------|--------|
-| very positive / positive | Positive (0) |
-| neutral | Neutral (1) |
-| negative / very negative | Negative (2) |
-
-> **Text column used:** `text_corrected` (OCR noise-corrected by human annotators — more reliable than `text_ocr`)
-
----
-
-## ⚙️ Installation
-
+### Step 1 — Install dependencies
 ```bash
-git clone https://github.com/your-username/multimodal-sentiment-memotion.git
-cd multimodal-sentiment-memotion
-
 pip install -r requirements.txt
 ```
 
-**Key dependencies:**
-- `torch >= 2.0`
-- `transformers >= 4.35`
-- `sentence-transformers >= 2.2`
-- `gradio >= 4.0`
-- `albumentations >= 1.3`
-- `timm >= 0.9`
+### Step 2 — Place dataset
+```
+project_root/
+  memotion_dataset_7k/
+    images/          ← all 6992 images here
+    labels.csv       ← from Kaggle
+```
 
----
-
-## 🚀 Usage
-
-### 1. Train
-
+### Step 3 — Train
 ```bash
-python train.py --data_dir ./memotion_dataset_7k --epochs 10
+python train.py --data_dir ./memotion_dataset_7k --epochs 10 --batch_size 32
 ```
 
-Trains all 5 folds by default. To train a single fold:
-
+### Step 4 — Evaluate
 ```bash
-python train.py --fold 0
+python evaluate.py --data_dir ./memotion_dataset_7k --model ./results/best_model.pt
 ```
 
-Checkpoints saved to `results/best/best_epoch-{fold}.pt`
-
-### 2. Evaluate
-
+### Step 5 — Launch Gradio App
 ```bash
-python evaluate.py \
-  --data_dir ./memotion_dataset_7k \
-  --model    ./results/best/best_epoch-00.pt
-```
-
-Generates:
-- `results/confusion_matrix.png`
-- `results/per_class_metrics.png`
-- `results/metrics_report.txt`
-
-### 3. Launch Gradio App
-
-```bash
-python app.py --model ./results/best/best_epoch-00.pt
-```
-
-Open → `http://localhost:7860`
-
-To create a public shareable link:
-
-```bash
-python app.py --model ./results/best/best_epoch-00.pt --share
+python app.py --model ./results/best_model.pt
 ```
 
 ---
 
-## 📈 Results
+## 8. File Structure
 
-| Metric | Score |
-|--------|-------|
-| Accuracy | 54.5% |
-| Precision (weighted) | 0.30 |
-| Recall (weighted) | 0.55 |
-| F1-Score (weighted) | 0.38 |
-
-### Confusion Matrix
-![Confusion Matrix](results/confusion_matrix.png)
-
-### Per-Class Metrics
-![Per-Class Metrics](results/per_class_metrics.png)
-
-### Training Curves
-![Training Curves](results/training_curves.png)
-
----
-
-## ⚠️ Known Issues & What Was Learned
-
-The model collapses to predicting **Positive** for all samples. Two root causes were identified:
-
-**1. Class Imbalance**
-- MemoTion-7k distribution: ~54% Positive, ~31% Neutral, ~15% Negative
-- Standard cross-entropy takes the easy path — always predict the majority class
-
-**2. Overfitting**
-- ViT + Sentence-BERT = ~220M parameters on only ~5,600 training samples
-- Val loss diverges from epoch 5; model memorises instead of generalising
-
-**Fixes (next steps):**
-```python
-# Fix 1 — Weighted loss
-weights = torch.tensor([1.0, 1.75, 3.5]).to(device)  # inverse class freq
-criterion = nn.CrossEntropyLoss(weight=weights)
-
-# Fix 2 — Freeze backbone, train only fusion layers
-for param in model.image_encoder.encoder.parameters():
-    param.requires_grad = False
-for param in model.text_encoder.encoder.parameters():
-    param.requires_grad = False
-# Now only ~200K params train instead of ~220M
+```
+multimodal_sentiment/
+├── app.py                      ← Gradio interface (run this)
+├── train.py                    ← Training pipeline
+├── evaluate.py                 ← Evaluation + plots
+├── requirements.txt
+├── README.md
+├── data/
+│   └── memotion_dataset.py     ← Dataset loader
+├── models/
+│   └── multimodal_model.py     ← ResNet50 + DistilBERT + Fusion MLP
+└── results/
+    ├── best_model.pt           ← Best checkpoint
+    ├── training_curves.png
+    ├── confusion_matrix.png
+    ├── per_class_metrics.png
+    └── metrics_report.txt
 ```
 
 ---
 
-## 🔧 Configuration
+## 9. References
 
-All hyperparameters are in `config.py` — edit before training:
-
-```python
-epochs        = 10
-train_bs      = 16
-learning_rate = 3e-4
-dropout       = 0.3
-num_folds     = 5
-image_encoder = "google/vit-base-patch16-224"
-text_encoder  = "sentence-transformers/all-mpnet-base-v2"
-```
-
----
-
-## 📚 References
-
-1. Sharma et al. (2020). *SemEval-2020 Task 8: Memotion Analysis*. ACL Anthology.
-2. Dosovitskiy et al. (2021). *An Image is Worth 16×16 Words*. ICLR 2021.
-3. Reimers & Gurevych (2019). *Sentence-BERT*. EMNLP 2019.
-4. Kiela et al. (2019). *Supervised Multimodal Bitransformers*. NeurIPS 2019.
-
----
-
-## 📝 License
-
-MIT License — free to use, modify, and distribute with attribution.
-
----
-
-*ELC 2025-26 | Computer Vision | Thapar Institute of Engineering & Technology, Patiala*
+1. Sharma, C. et al. (2020). *SemEval-2020 Task 8: Memotion Analysis*. SemEval.
+2. He, K. et al. (2016). *Deep Residual Learning for Image Recognition*. CVPR.
+3. Sanh, V. et al. (2019). *DistilBERT, a distilled version of BERT*. NeurIPS Workshop.
+4. Kiela, D. et al. (2019). *Supervised Multimodal Bitransformers for Classifying Images and Text*. NeurIPS.

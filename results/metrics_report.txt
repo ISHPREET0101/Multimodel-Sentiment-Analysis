@@ -1,0 +1,19 @@
+MULTIMODAL SENTIMENT ANALYSIS — EVALUATION REPORT
+MemoTion-7k Dataset
+=======================================================
+
+Accuracy  : 0.5448  (54.48%)
+Precision : 0.2968
+Recall    : 0.5448
+F1 Score  : 0.3843
+
+Classification Report:
+              precision    recall  f1-score   support
+
+    Positive       0.54      1.00      0.71       316
+     Neutral       0.00      0.00      0.00       216
+    Negative       0.00      0.00      0.00        48
+
+    accuracy                           0.54       580
+   macro avg       0.18      0.33      0.24       580
+weighted avg       0.30      0.54      0.38       580
